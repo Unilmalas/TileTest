@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+</head>
+<body>
+
+<br>
+start <p id="sstate"> start state </p>
+current <p id="cstate"> current state </p>
+
+<script>
+var goal_state = "012345";
+var current_state = "203145";
+var last_state=current_state.slice(0);
+
+var c_limit=9999; // minimal cost across branches
+var c_limit2=9999; // limit for alternative (2nd best)
+
+var maxsteps=500;
+var isteps=0;
+
+document.getElementById("sstate").innerHTML = current_state;
+
+/* A* pseudo
+  push startNode onto openList
+  while(openList is not empty) {
+     currentNode = find lowest f=g+h in openList
+     if currentNode is final (i.e. current state = goal state), return the successful path
+     push currentNode onto closedList and remove from openList
+     foreach neighbor (or children-nodes) of currentNode {
+		if neighbor in ClosedSet	
+                continue		// Ignore the neighbour which is already evaluated
+         if neighbour/child is not in openList {
+                save g, h, and f then save the current parent
+                add neighbour/child to openList
+         }
+         if neighbour/child is in openList but the current g is better than previous g {
+                 save g and f, then save the current parent
+         }
+     }
+*/
+
+// 0-1-2
+// 3-4-5
+var ntiles = 6;
+var gctr=0;
+var openList = [];
+var openListf = [];
+var closedList = [];
+var bestg, besth, bestf = 1000;
+var childNodes=[];
+
+openList.push(current_state);  // put the current state (node) into open list (search frontier)
+openListf.push(h2distance(current_state,goal_state));  // add the corresponding f-cost
+//console.log(" #1 " + openList + " f " + openListf);
+
+while(openList.length>0 && isteps<maxsteps) {
+	currentNode=lowestf(openList, openListf);
+	//console.log(currentNode + " # " + openList.length + " ## " + openList);
+	//console.log("f :: " + openListf);
+	if(currentNode==goal_state) break; // return the successful path
+	closedList.push(currentNode);  // put currentNode into closed list (spanning tree)
+	pop_from_open(openList, openListf, currentNode);  // remove currentNode from openList
+	// find all children of currentNode
+	childNodes=childnodes(currentNode).split(":");  // childnodes-string converted to array
+	var nnode=0;
+	var olc=0;
+	var clc=-1;
+	gctr++; // increase depth counter
+	//console.log(childNodes + " len " + (childNodes.length-1));
+	while(nnode<(childNodes.length-1)) {
+		// check if current child is in closed list
+		clc = myIndexOfArray(closedList, childNodes[nnode]);
+		if(clc==-1) {
+			// is current child node in open list?
+			olc = myIndexOfArray(openList, childNodes[nnode]);
+			if (olc<0) { // child not in open list
+					// save g, h, and f then save the current parent
+					// add neighbor/child to openList
+					openList.push(childNodes[nnode]);  // put the current state (node) into open list
+					var mycn="" + (childNodes.slice(nnode,nnode+1)).valueOf();
+					openListf.push(h2distance(mycn,goal_state)+gctr);  // add the corresponding f-cost
+			 } else {
+			 if (openListf[openList.indexOf(childNodes[nnode])]<bestf) {
+					 // save g and f, then save the current parent
+					 bestf=openListf[myIndexOfArray(openList, childNodes[nnode])];
+				 }
+			}
+		}
+		nnode++;
+     }
+	isteps++;
+}
+
+document.getElementById("cstate").innerHTML = currentNode;
+
+// find element in array
+function myIndexOfArray(array, string) {
+	for(i=0;i<array.length;i++) {
+		if(array[i]==string) return i;
+	}
+	return -1;
+}
+
+// pop current node from open list
+function pop_from_open(olist, olistf, cnode) {
+	var i=-1;
+	i = olist.indexOf(cnode);
+	//console.log("pop: " + olist + " : " + cnode + " # " + i);
+	if(i>-1) {
+		olist.splice(i,i+1); // delete just sets element to undefined, use splice
+		olistf.splice(i,i+1);
+	}
+	//console.log(olist);
+}
+
+// find lowest f in open list
+function lowestf(olist, olistf) {
+	var i=0;
+	var minf=1000;
+	var mini=0;
+	for(i=0;i<olist.length;i++) {
+		if(olistf[i]<minf) {
+			minf = olistf[i];
+			mini=i;
+		}
+	}
+	return olist[mini];
+}
+
+// 0-1-2
+// 3-4-5
+// return all possible child nodes
+function childnodes(node) {
+	var stfrom="00111223344455";
+	var stto=    "13042150431524";
+	var i=0;
+	var retval="";
+	var nodecp="";
+	var temp="";
+	// find 0-tile in node
+	var pos0=node.indexOf("0"); // e.g. pos0=8
+	// find the first index in the from-position of the 0-tile
+	var from0=stfrom.indexOf(pos0); // e.g. from0=6
+	i=from0;
+	while(stfrom.charAt(i)==pos0) { // loop over all positions that have a follower
+		// exchange pos0 and stto.charAt(i) in nodecp (copy of node)
+		temp=node.charAt(stto.charAt(i));
+		nodecp=node;
+		nodecp=replaceAt(nodecp, "0", Number(stto.charAt(i)));
+		nodecp=replaceAt(nodecp, temp, Number(pos0));
+		retval = retval + nodecp + ":";
+		i++;
+	}
+	return  retval;
+}
+
+// replace a character in a string
+function replaceAt(strg, character, index) {
+	return (strg.slice(0,index) + character + strg.slice(index+1,strg.length));
+}
+
+// distance function: h2-heuristic: Manhattan-distance current state from goal state
+function h2distance(cstate, gstate) {
+	var dist=0;
+	for(i=0;i<ntiles;i++) {
+		for(j=0;j<ntiles;j++) {
+			if(cstate.charAt(j)==gstate.charAt(i)) { // found matching tiles 
+				var d = Math.abs(i-j); // string distance of tiles
+				var df = Math.floor(d/3); // steps y-direction (3 tiles in a row)
+				dist+=(df +  d % 3); // steps x-direction (remainder after full rows of 3)
+			} else {
+				// do nothing
+			}
+		}
+	}
+	return dist; // return total distance
+}
+
+</script>
+		
+</body>
+</html>
